@@ -106,13 +106,17 @@ setup_aur() {
 }
 
 setup_init() {
-    local dir=${0%/*}
-    if [[ -r $dir/cjail-init.c ]]; then
-	cc -o "$DESTDIR"/init "$dir"/cjail-init.c -lmount
-	chmod 0500 "$DESTDIR"/init
-    elif [[ -x /usr/lib/cjail/init ]]; then
-	cp -a /usr/lib/cjail/init "$DESTDIR"/init
-    else
+    local dir=${0%/*} init foundit=
+    for init in "$dir/cjail-init" /usr/lib/cjail/init; do
+	if [[ -x $init ]]; then
+	    foundit=1
+	    cp "$init" "$DESTDIR"/init
+	    chmod 0500 "$DESTDIR"/init
+	    break
+	fi
+    done
+
+    if [[ -z $foundit ]]; then
 	echo "cannot find cjail-init" >&2
 	exit 1
     fi
@@ -130,3 +134,4 @@ setup_init
 
 mkdir -p "$READONLY"
 mkdir -p "$DESTDIR/root/oldroot"
+touch "$BASEDIR/.cjail"

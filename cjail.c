@@ -88,40 +88,46 @@ entercgroup (void)
   return 0;
 }
 
+void
+ensure_root (const char *path)
+{
+  struct stat sb;
+  if (stat (path, &sb)) {
+    perror (path);
+    exit (1);
+  }
+  if (sb.st_uid) {
+    fprintf (stderr, "%s: must be owned by root\n", path);
+    exit (1);
+  }
+  if (sb.st_mode & 022) {
+    fprintf (stderr, "%s: must not be writeable by group or other\n", path);
+    exit (1);
+  }
+}
+
 int
 setup_fs (const char *dir)
 {
-  char *pwd, *rw, *ro, *old;
-
-  pwd = get_current_dir_name ();
-  if (!pwd) {
-    perror ("getcwd");
+  if (chdir (dir)) {
+    perror (dir);
     return -1;
   }
-  asprintf (&rw, "%s/%s/root", dir[0] == '/' ? "" : pwd, dir);
-  asprintf (&ro, "%s/%s/readonly", dir[0] == '/' ? "" : pwd, dir);
-  free (pwd);
+  ensure_root (".cjail");
+  ensure_root ("root");
+  ensure_root ("root/init");
 
-  if (mount (rw, ro, "bind", MS_BIND|MS_REC, NULL)
-      || mount (rw, ro, "bind", MS_BIND|MS_REMOUNT|MS_RDONLY|MS_SLAVE, NULL)) {
+  if (mount ("root", "readonly", "bind", MS_BIND|MS_REC, NULL)
+      || mount ("root", "readonly", "bind",
+		MS_BIND|MS_REMOUNT|MS_RDONLY|MS_SLAVE, NULL)) {
     perror ("bind mount");
-    free (rw);
-    free (ro);
     return -1;
   }
 
-  free (rw);
-  asprintf (&old, "%s/root/oldroot", ro);
-
-  if (syscall (SYS_pivot_root, ro, old)) {
-    fprintf (stderr, "pivot_root (%s, %s): %s\n", ro, old, strerror (errno));
+  if (syscall (SYS_pivot_root, "readonly", "readonly/root/oldroot")) {
     perror ("pivot_root");
-    free (ro);
-    free (old);
     return -1;
   }
-  free (ro);
-  free (old);
 
   return chdir ("/");
 }
@@ -166,9 +172,21 @@ usage (char *argv0)
   exit (1);
 }
 
+pid_t child;
+static int killed;
+
+void
+sigpass (int signo)
+{
+  int waskilled = killed;
+  killed = 1;
+  kill (child, waskilled ? SIGKILL : signo);
+}
+
 struct state {
   char *dir;
   char **av;
+  sigset_t mask;
 };
 
 static int
@@ -176,6 +194,7 @@ runinit (void *_s)
 {
   struct state *s = _s;
 
+  sigprocmask (SIG_SETMASK, &s->mask, NULL);
   if (entercgroup ())
     _exit (1);
   if (setup_fs (s->dir))
@@ -195,7 +214,7 @@ main (int argc, char **argv)
     { NULL, 0, 0, 0 }
   };
   char *dir;
-  char *user = "nobody";
+  char *user = NULL;
   char *uid;
   struct passwd *pw;
   char **av;
@@ -203,6 +222,8 @@ main (int argc, char **argv)
   int flags = (CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS
 	       | CLONE_NEWUTS | CLONE_NEWPID | SIGCHLD);
   static struct state s;
+  sigset_t mask;
+  struct sigaction sa;
   char *stack = malloc (0x10000);
   stack += 0x10000;
 
@@ -220,20 +241,31 @@ main (int argc, char **argv)
   dir = argv[optind];
   optind++;
 
-  mkcgroup ();
 
-  if (!(pw = getpwnam (user))) {
-    fprintf (stderr, "%s: no such user\n", user);
-    exit (1);
+  if (!getuid ()) {
+    mkcgroup ();
+    if (!user)
+      user = "nobody";
+    if (!(pw = getpwnam (user))) {
+      fprintf (stderr, "%s: no such user\n", user);
+      exit (1);
+    }
+    if (setgid (pw->pw_gid)) {
+      perror ("setgid");
+      exit (1);
+    }
+    asprintf (&uid, "%d", pw->pw_uid);
+    if (initgroups (user, pw->pw_gid)) {
+      fprintf (stderr, "initgroups (%s) failed\n", user);
+      exit (1);
+    }
   }
-  if (setgid (pw->pw_gid)) {
-    perror ("setgid");
-    exit (1);
-  }
-  asprintf (&uid, "%d", pw->pw_uid);
-  if (initgroups (user, pw->pw_gid)) {
-    fprintf (stderr, "initgroups (%s) failed\n", user);
-    exit (1);
+  else {
+    if (user) {
+      fprintf (stderr, "can only specify user when running as root\n");
+      exit (1);
+    }
+    asprintf (&uid, "%d", getuid ());
   }
 
   av = malloc ((argc - optind + 3) * sizeof (av[0]));
@@ -245,11 +277,22 @@ main (int argc, char **argv)
 
   s.dir = dir;
   s.av = av;
-  i = clone (runinit, stack, flags, &s);
-  if (i < 0) {
+  sigfillset (&mask);
+  sigprocmask (SIG_SETMASK, &mask, &s.mask);
+  child = clone (runinit, stack, flags, &s);
+  if (child < 0) {
     perror ("clone");
     exit (1);
   }
-  waitpid (-1, NULL, __WALL);
+
+  bzero (&sa, sizeof (sa));
+  sa.sa_handler = sigpass;
+  sigaction (SIGINT, &sa, NULL);
+  sigaction (SIGQUIT, &sa, NULL);
+  sigaction (SIGTERM, &sa, NULL);
+  sigprocmask (SIG_SETMASK, &s.mask, NULL);
+
+  while (waitpid (-1, NULL, __WALL) != child)
+    ;
   return 0;
 }

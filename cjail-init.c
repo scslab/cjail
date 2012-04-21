@@ -107,7 +107,6 @@ main (int argc, char **argv)
 
   mount ("proc", "/proc", "proc", 0, NULL);
   mount ("tmp", "/tmp", "tmpfs", 0, NULL);
-  mount ("dev", "/dev", "devtmpfs", 0, NULL);
   unmountold ();
   if (setuid (uid)) {
     perror ("setuid");
