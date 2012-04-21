@@ -1,0 +1,118 @@
+#!/bin/bash
+
+PACKAGES=(git)
+AUR=(mimeo)
+
+if [[ $# != 1 ]]; then
+    echo "usage: $0 dir" >&2
+    exit 1
+fi
+
+BASEDIR="$1"
+[[ $BASEDIR != /* ]] && BASEDIR="$(pwd)/$BASEDIR"
+DESTDIR="$BASEDIR/root"
+READONLY="$BASEDIR/readonly"
+
+umask 022
+
+RCCONF="$DESTDIR/etc/rc.conf"
+
+MOUNTED=()
+cleanup() {
+    set +e
+    trap - 0
+    local n=${#MOUNTED[@]}
+    while [[ $n -gt 0 ]]; do
+	n=$((n - 1))
+	umount -l "${MOUNTED[$n]}"
+	unset MOUNTED[$n]
+    done
+    exit
+}
+
+rpacman() {
+    pacman --cachedir /var/cache/pacman/pkg -r "$DESTDIR" --noconfirm "$@"
+}
+
+init_dest() {
+    pacman -Sy --noconfirm
+
+    trap 'cleanup' 0 2 15
+    mkdir -p "$DESTDIR"/var/lib/pacman
+    cp -a /var/lib/pacman/sync "$DESTDIR"/var/lib/pacman/
+
+    for dir in /proc /sys /dev /dev/pts /dev/shm; do
+	mkdir -p "$DESTDIR/${dir#/}"
+	MOUNTED[${#MOUNTED[@]}]="$DESTDIR/${dir#/}"
+	mount -B "$dir" "$DESTDIR/${dir#/}"
+    done
+
+    mkdir -p "$DESTDIR"/tmp
+    MOUNTED[${#MOUNTED[@]}]="$DESTDIR"/tmp
+    mount -t tmpfs tmpfs "$DESTDIR"/tmp
+
+    rpacman -S --needed base base-devel
+    if [[ ${#PACKAGES[@]} > 0 ]]; then
+	rpacman -S --needed "${PACKAGES[@]}"
+    fi
+
+    grep -q '^[^#]' "$DESTDIR/etc/pacman.d/mirrorlist" \
+	|| sed -ie "\|http://mirrors.kernel.org/|s/^#//" \
+	    "$DESTDIR/etc/pacman.d/mirrorlist"
+}
+
+setup_yaourt() {
+    local pkg
+
+    if rpacman -Qmq | egrep -q '^yaourt$'; then
+	return
+    fi
+
+    for pkg in package-query yaourt; do
+	wget -O- "http://aur.archlinux.org/packages/${pkg}/${pkg}.tar.gz" \
+	    | tar -C "$DESTDIR/tmp" -xzf -
+	chroot "$DESTDIR" sh -c \
+	    "set -x; cd /tmp/$pkg && makepkg --asroot -si --noconfirm"
+    done
+}
+
+setup_aur() {
+    local pkg
+
+    for file in /etc/resolv.conf /etc/pacman.d/mirrorlist; do
+	MOUNTED[${#MOUNTED[@]}]="$DESTDIR/${file}"
+	mount -B "$file" "$DESTDIR/${file}"
+    done
+
+    local -A installed
+    while read pkg; do
+	installed[$pkg]=1
+    done < <(rpacman -Qmq)
+
+    local -a toinstall
+    for pkg in "${AUR[@]}"; do
+	if [[ -z ${installed[$pkg]} ]]; then
+	    toinstall[${#toinstall[@]}]=$pkg
+	fi
+    done
+
+    if [[ ${#toinstall[@]} > 0 ]]; then
+	HOME=/root chroot "$DESTDIR" yaourt --noconfirm -S "${toinstall[@]}"
+    fi
+    HOME=/root chroot "$DESTDIR" yaourt --noconfirm -Sau
+}
+
+if [[ $UID != 0 ]]; then
+    echo This should be done as root
+    exit 1
+fi
+
+init_dest
+setup_yaourt
+setup_aur
+
+if ! mountpoint -q "$READONLY"; then
+    mkdir -p "$READONLY"
+    mount -B "$DESTDIR" "$READONLY"
+    mount -o remount,bind,ro "$READONLY"
+fi
