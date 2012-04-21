@@ -111,8 +111,11 @@ init_dest
 setup_yaourt
 setup_aur
 
-if ! mountpoint -q "$READONLY"; then
-    mkdir -p "$READONLY"
-    mount -B "$DESTDIR" "$READONLY"
-    mount -o remount,bind,ro "$READONLY"
-fi
+mkdir -p "$READONLY"
+mkdir -p "$DESTDIR/root/oldroot"
+
+#if ! mountpoint -q "$READONLY"; then
+#    mkdir -p "$READONLY"
+#    mount -B "$DESTDIR" "$READONLY"
+#    mount -o remount,bind,ro "$READONLY"
+#fi
