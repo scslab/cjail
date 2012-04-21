@@ -41,6 +41,9 @@ init_dest() {
     mkdir -p "$DESTDIR"/var/lib/pacman
     cp -a /var/lib/pacman/sync "$DESTDIR"/var/lib/pacman/
 
+    mkdir -p "$DESTDIR"/dev
+    cp -a /dev/{null,zero,urandom,tty,ptmx} "$DESTDIR"/dev/
+
     for dir in /proc /sys /dev /dev/pts /dev/shm; do
 	mkdir -p "$DESTDIR/${dir#/}"
 	MOUNTED[${#MOUNTED[@]}]="$DESTDIR/${dir#/}"
@@ -102,6 +105,19 @@ setup_aur() {
     HOME=/root chroot "$DESTDIR" yaourt --noconfirm -Sau
 }
 
+setup_init() {
+    local dir=${0%/*}
+    if [[ -r $dir/cjail-init.c ]]; then
+	cc -o "$DESTDIR"/init "$dir"/cjail-init.c -lmount
+	chmod 0500 "$DESTDIR"/init
+    elif [[ -x /usr/lib/cjail/init ]]; then
+	cp -a /usr/lib/cjail/init "$DESTDIR"/init
+    else
+	echo "cannot find cjail-init" >&2
+	exit 1
+    fi
+}
+
 if [[ $UID != 0 ]]; then
     echo This should be done as root
     exit 1
@@ -110,12 +126,7 @@ fi
 init_dest
 setup_yaourt
 setup_aur
+setup_init
 
 mkdir -p "$READONLY"
 mkdir -p "$DESTDIR/root/oldroot"
-
-#if ! mountpoint -q "$READONLY"; then
-#    mkdir -p "$READONLY"
-#    mount -B "$DESTDIR" "$READONLY"
-#    mount -o remount,bind,ro "$READONLY"
-#fi
