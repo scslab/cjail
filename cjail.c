@@ -89,7 +89,7 @@ entercgroup (void)
 }
 
 void
-ensure_root (const char *path)
+ensure_root (const char *path, int suid)
 {
   struct stat sb;
   if (stat (path, &sb)) {
@@ -100,9 +100,19 @@ ensure_root (const char *path)
     fprintf (stderr, "%s: must be owned by root\n", path);
     exit (1);
   }
-  if (sb.st_mode & 022) {
-    fprintf (stderr, "%s: must not be writeable by group or other\n", path);
-    exit (1);
+  if (suid) {
+    /* suid is kind of a flag saying it's okay to exec it as root; we
+     * don't want non-root users running it anyway. */
+    if ((sb.st_mode & 07777) != 04500) {
+      fprintf (stderr, "%s: must have mode 04500 not 0%o\n", path, sb.st_mode);
+      exit (1);
+    }
+  }
+  else {
+    if (sb.st_mode & 022) {
+      fprintf (stderr, "%s: must not be writeable by group or other\n", path);
+      exit (1);
+    }
   }
 }
 
@@ -113,9 +123,9 @@ setup_fs (const char *dir)
     perror (dir);
     return -1;
   }
-  ensure_root (".cjail");
-  ensure_root ("root");
-  ensure_root ("root/init");
+  ensure_root (".cjail", 0);
+  ensure_root ("root", 0);
+  ensure_root ("root/init", 1);
 
   if (mount ("root", "readonly", "bind", MS_BIND|MS_REC, NULL)
       || mount ("root", "readonly", "bind",
@@ -168,7 +178,7 @@ usage (char *argv0)
     p++;
   else
     p = argv0;
-  fprintf (stderr, "usage: %s [--user user] dir\n", p);
+  fprintf (stderr, "usage: %s [--user user] dir program [arg ...]\n", p);
   exit (1);
 }
 

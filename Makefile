@@ -8,6 +8,10 @@ cjail: cjail.c
 cjail-init: cjail-init.c
 	$(CC) $(CFLAGS) -o $@ cjail-init.c -lmount
 
+.PHONY: install
+install:
+	makepkg -fi
+
 .PHONY: clean
 clean:
 	rm -f *~ *.o cjail cjail-init

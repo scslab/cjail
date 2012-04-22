@@ -1,17 +1,33 @@
-#!/bin/bash
+#!/bin/bash -e
 
-PACKAGES=(git)
-AUR=(mimeo)
+CONFFILE=
+PACKAGES=()
+AUR=()
 
-if [[ $# != 1 ]]; then
-    echo "usage: $0 dir" >&2
+usage() {
+    echo "usage: $0 [-c conf] dir" >&2
     exit 1
-fi
+}
 
-BASEDIR="$1"
+while getopts 'c:' arg; do
+    case $arg in
+	c)
+	    CONFFILE=$OPTARG
+	    ;;
+	\?)
+	    usage
+	    ;;
+    esac
+done
+
+[[ $# -eq $((OPTIND)) ]] || usage
+shift $((OPTIND - 1))
+BASEDIR=$1
 [[ $BASEDIR != /* ]] && BASEDIR="$(pwd)/$BASEDIR"
 DESTDIR="$BASEDIR/root"
 READONLY="$BASEDIR/readonly"
+
+[[ -z $CONFFILE ]] || . $CONFFILE
 
 umask 022
 
@@ -111,7 +127,7 @@ setup_init() {
 	if [[ -x $init ]]; then
 	    foundit=1
 	    cp "$init" "$DESTDIR"/init
-	    chmod 0500 "$DESTDIR"/init
+	    chmod 04500 "$DESTDIR"/init
 	    break
 	fi
     done
