@@ -10,8 +10,9 @@ cjail-init: cjail-init.c
 
 .PHONY: install
 install:
-	makepkg -fi
+	makepkg $$(test `id -u` == 0 && echo --asroot) --skipinteg -fi
 
 .PHONY: clean
 clean:
-	rm -f *~ *.o cjail cjail-init
+	rm -f *~ *.o cjail cjail-init cjail-*.pkg.tar.xz
+	rm -r pkg src

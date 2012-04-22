@@ -78,6 +78,9 @@ init_dest() {
     grep -q '^[^#]' "$DESTDIR/etc/pacman.d/mirrorlist" \
 	|| sed -ie "\|http://mirrors.kernel.org/|s/^#//" \
 	    "$DESTDIR/etc/pacman.d/mirrorlist"
+
+    rm -r "$DESTDIR/var/tmp"
+    ln -s ../tmp "$DESTDIR/var/tmp"
 }
 
 setup_yaourt() {
