@@ -36,7 +36,8 @@ cjail jail bash
 Only the /tmp directory will be writable, there will be no network
 access, and there will be no communication between different cjail
 instances (i.e., you can run cjail twice concurrently on the same jail
-and the processes will not see the same file system).
+and the processes will not see the same /tmp file system, only the
+same root which is not writable anyway).
 
 You can also put a time limit in seconds on the jailed process (and
 all subprocesses) with the -t option:
@@ -50,4 +51,5 @@ friendly way.)
 
 cjail sets up a cgroup in /cgroup/cjail.  It doesn't currently limit
 any resources except for device access, but this could easily be
-further customized.
+further customized.  If you create the group on bootup, cjail will not
+modify the parameters, so make sure you disable most device access.
