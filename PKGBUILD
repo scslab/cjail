@@ -6,9 +6,9 @@ arch=(i686 x86_64)
 license=('GPL')
 install=
 source=(Makefile cjail.c mkcjail cjail-init.c)
-md5sums=('d06a4f0a595cfa3f5e6c266be30ec75e'
-         'f35e9efcd79266233833c82a88b711bb'
-         'c3980d2d401c85525c7af96ec79e9112'
+md5sums=('e202b48227c1a9a6772f83f9be3d0ae6'
+         'eb4d4590d8a5acaf0193b8e6e33ff12c'
+         '52b3ede33017e65adce8fe458d53f18e'
          'f308c9b6564eb83550cfb3f4b6d2f00c')
     
 build() {
