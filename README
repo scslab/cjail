@@ -1,6 +1,6 @@
 * Installation:
 
-git clone market.scs.stanford.edu:/home/u1/dm/hack/arch/cjail.git
+git clone gitstar.com:/dm/cjail.git
 cd cjail
 make install
 
