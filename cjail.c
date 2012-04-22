@@ -178,7 +178,9 @@ usage (char *argv0)
     p++;
   else
     p = argv0;
-  fprintf (stderr, "usage: %s [--user user] dir program [arg ...]\n", p);
+  fprintf (stderr,
+	   "usage: %s [--user user] [--timeout sec] dir program [arg ...]\n",
+	   p);
   exit (1);
 }
 
@@ -191,6 +193,7 @@ sigpass (int signo)
   int waskilled = killed;
   killed = 1;
   kill (child, waskilled ? SIGKILL : signo);
+  alarm (2);
 }
 
 struct state {
@@ -221,6 +224,7 @@ main (int argc, char **argv)
   int opt;
   struct option o[] = {
     { "user", required_argument, NULL, 'u'},
+    { "timeout", required_argument, NULL, 't'},
     { NULL, 0, 0, 0 }
   };
   char *dir;
@@ -234,13 +238,17 @@ main (int argc, char **argv)
   static struct state s;
   sigset_t mask;
   struct sigaction sa;
+  unsigned timeout = 0;
   char *stack = malloc (0x10000);
   stack += 0x10000;
 
-  while ((opt = getopt_long (argc, argv, "+u:", o, NULL)) != -1)
+  while ((opt = getopt_long (argc, argv, "+u:t:", o, NULL)) != -1)
     switch (opt) {
     case 'u':
       user = optarg;
+      break;
+    case 't':
+      timeout = atoi (optarg);
       break;
     default:
       usage (argv[0]);
@@ -297,9 +305,13 @@ main (int argc, char **argv)
 
   bzero (&sa, sizeof (sa));
   sa.sa_handler = sigpass;
+  sigaction (SIGHUP, &sa, NULL);
   sigaction (SIGINT, &sa, NULL);
   sigaction (SIGQUIT, &sa, NULL);
   sigaction (SIGTERM, &sa, NULL);
+  sigaction (SIGALRM, &sa, NULL);
+  if (timeout)
+    alarm (timeout);
   sigprocmask (SIG_SETMASK, &s.mask, NULL);
 
   while (waitpid (-1, NULL, __WALL) != child)

@@ -5,7 +5,7 @@ pkgdesc="cgroups-based jail tools"
 arch=(i686 x86_64)
 license=('GPL')
 install=
-source=(Makefile cjail.c mkcjail cjail-init.c)
+source=(Makefile cjail.c mkcjail cjail-init.c README)
 
 build() {
   cd "$srcdir"
@@ -17,4 +17,5 @@ package() {
   install -Dm4755 cjail "$pkgdir"/usr/sbin/cjail
   install -Dm744 mkcjail "$pkgdir"/usr/bin/mkcjail
   install -Dm755 cjail-init "$pkgdir"/usr/lib/cjail/init
+  install -Dm755 README "$pkgdir"/usr/share/doc/cjail/README
 }

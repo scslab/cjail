@@ -95,6 +95,11 @@ main (int argc, char **argv)
   char **av;
   int i;
 
+  if (getpid () != 1) {
+    fprintf (stderr, "%s: I should have PID 1\n", argv[0]);
+    exit (1);
+  }
+
   if (argc < 3) {
     fprintf (stderr, "usage: %s uid prog [arg ...]\n", argv[0]);
     exit (1);
