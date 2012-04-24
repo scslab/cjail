@@ -15,4 +15,4 @@ install:
 .PHONY: clean
 clean:
 	rm -f *~ *.o cjail cjail-init cjail-*.pkg.tar.xz
-	rm -r pkg src
+	rm -rf pkg src

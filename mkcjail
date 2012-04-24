@@ -1,18 +1,22 @@
 #!/bin/bash -e
 
+STARTSHELL=
 CONFFILE=
 PACKAGES=()
 AUR=()
 
 usage() {
-    echo "usage: $0 [-c conf] dir" >&2
+    echo "usage: $0 [-c conf | -s] dir" >&2
     exit 1
 }
 
-while getopts 'c:' arg; do
+while getopts 'c:s' arg; do
     case $arg in
 	c)
 	    CONFFILE=$OPTARG
+	    ;;
+	s)
+	    STARTSHELL=1
 	    ;;
 	\?)
 	    usage
@@ -46,19 +50,8 @@ cleanup() {
     exit
 }
 
-rpacman() {
-    pacman --cachedir /var/cache/pacman/pkg -r "$DESTDIR" --noconfirm "$@"
-}
-
-init_dest() {
-    pacman -Sy --noconfirm
-
+bind_dirs() {
     trap 'cleanup' 0 2 15
-    mkdir -p "$DESTDIR"/var/lib/pacman
-    cp -a /var/lib/pacman/sync "$DESTDIR"/var/lib/pacman/
-
-    mkdir -p "$DESTDIR"/dev
-    cp -a /dev/{null,zero,urandom,tty,ptmx} "$DESTDIR"/dev/
 
     for dir in /proc /sys /dev /dev/pts /dev/shm; do
 	mkdir -p "$DESTDIR/${dir#/}"
@@ -69,6 +62,29 @@ init_dest() {
     mkdir -p "$DESTDIR"/tmp
     MOUNTED[${#MOUNTED[@]}]="$DESTDIR"/tmp
     mount -t tmpfs tmpfs "$DESTDIR"/tmp
+}
+
+bind_files() {
+    for file in /etc/resolv.conf /etc/pacman.d/mirrorlist; do
+	MOUNTED[${#MOUNTED[@]}]="$DESTDIR/${file}"
+	mount -B "$file" "$DESTDIR/${file}"
+    done
+}
+
+rpacman() {
+    pacman --cachedir /var/cache/pacman/pkg -r "$DESTDIR" --noconfirm "$@"
+}
+
+init_dest() {
+    pacman -Sy --noconfirm
+
+    mkdir -p "$DESTDIR"/var/lib/pacman
+    cp -a /var/lib/pacman/sync "$DESTDIR"/var/lib/pacman/
+
+    mkdir -p "$DESTDIR"/dev
+    cp -a /dev/{null,zero,urandom,tty,ptmx} "$DESTDIR"/dev/
+
+    bind_dirs
 
     rpacman -S --needed base base-devel
     if [[ ${#PACKAGES[@]} > 0 ]]; then
@@ -81,6 +97,8 @@ init_dest() {
 
     rm -r "$DESTDIR/var/tmp"
     ln -s ../tmp "$DESTDIR/var/tmp"
+
+    bind_files
 }
 
 setup_yaourt() {
@@ -100,11 +118,6 @@ setup_yaourt() {
 
 setup_aur() {
     local pkg
-
-    for file in /etc/resolv.conf /etc/pacman.d/mirrorlist; do
-	MOUNTED[${#MOUNTED[@]}]="$DESTDIR/${file}"
-	mount -B "$file" "$DESTDIR/${file}"
-    done
 
     local -A installed
     while read pkg; do
@@ -144,6 +157,17 @@ setup_init() {
 if [[ $UID != 0 ]]; then
     echo This should be done as root
     exit 1
+fi
+
+if [[ -n $STARTSHELL ]]; then
+    if ! test -r "$BASEDIR/.cjail"; then
+	echo "$BASEDIR: not a cjail (must create it before using -s)" >&2
+	exit 1
+    fi
+    bind_dirs
+    bind_files
+    chroot "$DESTDIR" bash
+    exit
 fi
 
 init_dest
