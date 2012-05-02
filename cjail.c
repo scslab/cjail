@@ -49,6 +49,11 @@ mkcgroup (void)
     }
   }
 
+  if (!access ("/cgroup/cjail", 0)) {
+    fprintf (stderr, "using existing cgroup /cgroup/cjail\n");
+    return 0;
+  }
+
   if (echoTo ("1\n", "/cgroup/cgroup.clone_children"))
     return -1;
   if (mkdir ("/cgroup/cjail~", 0755)) {
@@ -227,7 +232,7 @@ main (int argc, char **argv)
   int opt;
   struct option o[] = {
     { "user", required_argument, NULL, 'u'},
-    { "init", required_argument, NULL, 'i'},
+    { "init", no_argument, NULL, 'i'},
     { "timeout", required_argument, NULL, 't'},
     { NULL, 0, 0, 0 }
   };
@@ -262,14 +267,19 @@ main (int argc, char **argv)
       usage (argv[0]);
       break;
     }
-  if (init_only && (optind != argc || user || timeout)) {
-    fprintf (stderr, "--init option cannot be combined with other options\n");
-    exit (1);
+  if (init_only) {
+    if (optind != argc || user || timeout) {
+      fprintf (stderr, "cannot combine --init with other options\n");
+      exit (1);
+    }
+    dir = NULL;
   }
-  if (optind + 2 > argc)
-    usage (argv[0]);
-  dir = argv[optind];
-  optind++;
+  else {
+    if (optind + 2 > argc)
+      usage (argv[0]);
+    dir = argv[optind];
+    optind++;
+  }
 
   if (!getuid ()) {
     mkcgroup ();
