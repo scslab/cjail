@@ -119,10 +119,13 @@ ensure_root (const char *path, int suid)
 int
 setup_fs (const char *dir)
 {
+  seteuid (getuid ());
   if (chdir (dir)) {
     perror (dir);
+    seteuid (0);
     return -1;
   }
+  seteuid (0);
   ensure_root (".cjail", 0);
   ensure_root ("root", 0);
   ensure_root ("root/init", 1);
@@ -179,8 +182,8 @@ usage (char *argv0)
   else
     p = argv0;
   fprintf (stderr,
-	   "usage: %s [--user user] [--timeout sec] dir program [arg ...]\n",
-	   p);
+	   "usage: %s [--user user] [--timeout sec] dir program [arg ...]\n"
+	   "       %s --init\n", p, p);
   exit (1);
 }
 
@@ -224,9 +227,11 @@ main (int argc, char **argv)
   int opt;
   struct option o[] = {
     { "user", required_argument, NULL, 'u'},
+    { "init", required_argument, NULL, 'i'},
     { "timeout", required_argument, NULL, 't'},
     { NULL, 0, 0, 0 }
   };
+  int init_only = 0;
   char *dir;
   char *user = NULL;
   char *uid;
@@ -242,8 +247,11 @@ main (int argc, char **argv)
   char *stack = malloc (0x10000);
   stack += 0x10000;
 
-  while ((opt = getopt_long (argc, argv, "+u:t:", o, NULL)) != -1)
+  while ((opt = getopt_long (argc, argv, "+iu:t:", o, NULL)) != -1)
     switch (opt) {
+    case 'i':
+      init_only = 1;
+      break;
     case 'u':
       user = optarg;
       break;
@@ -254,14 +262,19 @@ main (int argc, char **argv)
       usage (argv[0]);
       break;
     }
+  if (init_only && (optind != argc || user || timeout)) {
+    fprintf (stderr, "--init option cannot be combined with other options\n");
+    exit (1);
+  }
   if (optind + 2 > argc)
     usage (argv[0]);
   dir = argv[optind];
   optind++;
 
-
   if (!getuid ()) {
     mkcgroup ();
+    if (init_only)
+      return 0;
     if (!user)
       user = "nobody";
     if (!(pw = getpwnam (user))) {
@@ -281,6 +294,10 @@ main (int argc, char **argv)
   else {
     if (user) {
       fprintf (stderr, "can only specify user when running as root\n");
+      exit (1);
+    }
+    if (init_only) {
+      fprintf (stderr, "can only specify --init when running as root\n");
       exit (1);
     }
     asprintf (&uid, "%d", getuid ());
