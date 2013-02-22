@@ -4,7 +4,7 @@ This module exports an interface that is analogous to
 "System.Process", with the following differences:
 
 * All the commands and executables are withing a @cjail@ and
-  so peristance staorage lasts only for the duration of a 'runCJail'.
+  so persistent storage lasts only for the duration of a 'runCJail'.
 
 * Neither the environment nor file handles of the current process
   are inherited. New file handles are always created, and the 
@@ -79,7 +79,7 @@ proc cmd args = CreateProcess { cmdspec = RawCommand cmd args
                               , cwd = Nothing
                               , env = [] }
 
--- | Labeled handle to process
+-- | Handles to process
 data ProcessHandle = ProcessHandle
   { stdIn  :: Handle
   -- ^ New standard in handle, will use default encoding and newline
@@ -98,11 +98,10 @@ instance Show CmdSpec where
   show (ShellCommand s) = s
   show (RawCommand fp args) = unwords $ fp : args
 
--- | Create a process handle. The handle contains labeled
--- handles to standard in, standard out, and standard error. Moreover,
--- a handle to the process itself (to e.g., terminate it) is
--- also constructed. Internally, this function calls
--- 'System.Process.createProcess'.
+-- | Create a process handle. The process handle contains file handles
+-- to standard in, standard out, and standard error. Moreover, a
+-- handle to the process itself  is also constructed. Internally, this
+-- function calls 'System.Process.createProcess'.
 --
 -- For example to execute a simple @ls@ command:
 --
@@ -110,18 +109,18 @@ instance Show CmdSpec where
 -- > ...
 -- >
 -- > ls :: IO L8.ByteString
--- > ls = runCJail (CJailConf Nothing Nothing "/opt/myJail") $ do
--- >        lph <- createProcess (shell "ls")
--- >        liftLIO $ hGetContents $ stdOut lph
+-- > ls = do ph <- createProcess conf (shell "ls")
+-- >         hGetContents $ stdOut ph
+-- >   where conf =  CJailConf Nothing Nothing "/opt/myJail"
 --
 -- or write and read from (same) temporary file with @cat@:
 --
 -- > ex :: IO L8.ByteString
--- > ex = runCJail (CJailConf Nothing Nothing "/opt/myJail") $ do
--- >       lph <- createProcess (shell "cat > /tmp/xxx ; cat /tmp/xxx")
--- >       liftLIO $ hPutStrLn (stdIn lph) (L8.pack "hello jail")
--- >       liftLIO $ hClose (stdIn lph)
--- >       liftLIO $ hGetContents $ stdOut lph
+-- > ex = do ph <- createProcess conf (shell "cat > /tmp/xxx ; cat /tmp/xxx")
+-- >         hPutStrLn (stdIn ph) (L8.pack "hello jail")
+-- >         hClose (stdIn ph)
+-- >         hGetContents $ stdOut ph
+-- >   where conf =  CJailConf Nothing Nothing "/opt/myJail"
 --
 -- Note that both of these examples use Lazy IO and thus the handles
 -- are not closed. More appropriately, the result from the jailed
@@ -131,14 +130,14 @@ instance Show CmdSpec where
 --
 -- > sort :: [Int] -> IO [Int]
 -- > sort ls = do
--- >   lph <- runCJail (CJailConf Nothing Nothing "/opt/myJail") $
--- >            createProcess (proc "sort" ["-n"])
+-- >   ph < createProcess conf (proc "sort" ["-n"])
 -- >   let input = L8.pack . intercalate "\n" . map show $ ls
--- >   hPut (stdIn lph) input
--- >   hClose (stdIn lph)
--- >   bs <- whileNotEOF (stdOut lph) []
--- >   closeHandles lph
+-- >   hPut (stdIn ph) input
+-- >   hClose (stdIn ph)
+-- >   bs <- whileNotEOF (stdOut ph) []
+-- >   closeHandles ph
 -- >   return bs
+-- >     where conf = CJailConf Nothing Nothing "/opt/myJail
 -- >     where whileNotEOF h acc = do
 -- >             eof <- hIsEOF  h
 -- >             if eof

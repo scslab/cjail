@@ -6,19 +6,34 @@ License-File:   LICENSE
 Author:         Hails team
 Maintainer:     Hails Stefan  <hails at scs dot stanford dot edu>
 Stability:      experimental
-Synopsis:       Bindings for the Arch linux cjail 
+Synopsis:       Bindings for an Arch-Linux chroot-jail 
 Category:       Security
 Cabal-Version:  >= 1.6
 
 Description:
-        This library provides a process-like inteface for executing
-        arbitrary code in a jail (using the cjail program) using an
-        LIO monad transformer.
+  This library provides a process-like inteface for executing
+  arbitrary code in a jail (using the @cjail@ program).
 
-        Currently only Arch linux is supported. You should install
-        first cjail from: 
-        
-        git clone <http://www.github.com/scslab/cjail.git>
+  .
+
+  @cjail@ uses Linux isolation mechanisms to confine processes.  These
+  techniques are not novel, but it is important that they work
+  properly.  Using @clone@ with the various @CLONE_NEW*@ flags, we
+  give each confined process its own mount table and process ID
+  namespace, as well as a new network stack with a new loopback device
+  and no external interfaces.  Using a read-only bind-mount and the
+  @tmpfs@ file system, we create a system image in which the only
+  writable directory is an empty @/tmp@.  Using @cgroups@, we restrict
+  the ability to create and use devices and consume resources.  With
+  @pivot_root@ and @umount@, we hide filesystems outside of the
+  read-only system image.  The previous actions all occur in a setuid
+  root wrapper utility, which finally calls @setuid@ and drops
+  capabilities before executing the confined process.
+
+  .
+
+  Currently this only works on Arch Linux. You can @cjail@ from: 
+  <http://www.github.com/scslab/cjail>
 
 Extra-source-files:
   examples/ls.hs
@@ -34,7 +49,7 @@ Library
    ,bytestring        >= 0.9
    ,process           >= 1.1.0.1
 
-  ghc-options: -Wall -Werror -fno-warn-orphans
+  ghc-options: -Wall -fno-warn-orphans
 
   Exposed-modules:
     CJail.System.Process
