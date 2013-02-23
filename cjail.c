@@ -242,6 +242,7 @@ main (int argc, char **argv)
   char *uid;
   struct passwd *pw;
   char **av;
+  int child_status = 0;
   int i;
   int flags = (CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS
 	       | CLONE_NEWUTS | CLONE_NEWPID | SIGCHLD);
@@ -341,7 +342,12 @@ main (int argc, char **argv)
     alarm (timeout);
   sigprocmask (SIG_SETMASK, &s.mask, NULL);
 
-  while (waitpid (-1, NULL, __WALL) != child)
+  while (waitpid (-1, &child_status, __WALL) != child)
     ;
+
+  if(WIFEXITED(child_status)) { 
+    return WEXITSTATUS(child_status);
+  }
+
   return 0;
 }
