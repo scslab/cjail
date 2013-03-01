@@ -92,7 +92,7 @@ init_dest() {
     fi
 
     grep -q '^[^#]' "$DESTDIR/etc/pacman.d/mirrorlist" \
-	|| sed -ie "\|http://mirrors.kernel.org/|s/^#//" \
+	|| sed -ie "\|http://mirrors.cat.pdx.edu/|s/^#//" \
 	    "$DESTDIR/etc/pacman.d/mirrorlist"
 
     rm -r "$DESTDIR/var/tmp"
@@ -108,8 +108,11 @@ setup_yaourt() {
 	return
     fi
 
+    chroot "$DESTDIR" sh -c \
+	"pacman-key --init"
+
     for pkg in package-query yaourt; do
-	wget -O- "http://aur.archlinux.org/packages/${pkg}/${pkg}.tar.gz" \
+	wget -O- "http://aur.archlinux.org/packages/${pkg:0:2}/${pkg}/${pkg}.tar.gz" \
 	    | tar -C "$DESTDIR/tmp" -xzf -
 	chroot "$DESTDIR" sh -c \
 	    "set -x; cd /tmp/$pkg && makepkg --asroot -si --noconfirm"
