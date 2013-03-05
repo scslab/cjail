@@ -18,6 +18,8 @@
 #include <sys/mount.h>
 #include <sys/syscall.h>
 
+#define DEV_CGROUP "/sys/fs/cgroup/devices"
+
 int
 echoTo (const char *contents, const char *file)
 {
@@ -38,41 +40,38 @@ echoTo (const char *contents, const char *file)
 int
 mkcgroup (void)
 {
-  if (!access ("/cgroup/cjail", 0))
+  if (!access (DEV_CGROUP "/cjail", 0))
     return 0;
 
-  if (access ("/cgroup/tasks", 0)) {
-    mkdir ("/cgroup", 0755);
-    if (mount ("cgroup", "/cgroup", "cgroup", 0, NULL)) {
-      perror ("/cgroup");
-      return -1;
-    }
+  if (access (DEV_CGROUP "/tasks", 0)) {
+    perror (DEV_CGROUP "/tasks");
+    return -1;
   }
 
-  if (!access ("/cgroup/cjail", 0)) {
-    fprintf (stderr, "using existing cgroup /cgroup/cjail\n");
+  if (!access (DEV_CGROUP "/cjail", 0)) {
+    fprintf (stderr, "using existing cgroup %s/cjail\n", DEV_CGROUP);
     return 0;
   }
 
-  if (echoTo ("1\n", "/cgroup/cgroup.clone_children"))
+  if (echoTo ("1\n", DEV_CGROUP "/cgroup.clone_children"))
     return -1;
-  if (mkdir ("/cgroup/cjail~", 0755)) {
-    perror ("/cgroup/cjail~");
+  if (mkdir (DEV_CGROUP "/cjail~", 0755)) {
+    perror (DEV_CGROUP "/cjail~");
     return -1;
   }
 
-  if (echoTo ("a\n", "/cgroup/cjail~/devices.deny")
-      || echoTo ("c 1:3 rwm\n", "/cgroup/cjail~/devices.allow") /* null */
-      || echoTo ("c 1:5 rwm\n", "/cgroup/cjail~/devices.allow") /* zero */
-      || echoTo ("c 1:9 rm\n", "/cgroup/cjail~/devices.allow") /* urandom */
-      || echoTo ("c 5:0 rwm\n", "/cgroup/cjail~/devices.allow") /* tty */
-      || echoTo ("c 5:2 rwm\n", "/cgroup/cjail~/devices.allow") /* ptmx */
-      || echoTo ("c 136:* rwm\n", "/cgroup/cjail~/devices.allow")) /* pts */
+  if (echoTo ("a\n", DEV_CGROUP "/cjail~/devices.deny")
+      || echoTo ("c 1:3 rwm\n", DEV_CGROUP "/cjail~/devices.allow") /* null */
+      || echoTo ("c 1:5 rwm\n", DEV_CGROUP "/cjail~/devices.allow") /* zero */
+      || echoTo ("c 1:9 rm\n", DEV_CGROUP "/cjail~/devices.allow") /* urandom */
+      || echoTo ("c 5:0 rwm\n", DEV_CGROUP "/cjail~/devices.allow") /* tty */
+      || echoTo ("c 5:2 rwm\n", DEV_CGROUP "/cjail~/devices.allow") /* ptmx */
+      || echoTo ("c 136:* rwm\n", DEV_CGROUP "/cjail~/devices.allow")) /* pts */
     return -1;
 
-  if (rename ("/cgroup/cjail~", "/cgroup/cjail")) {
-    perror ("/cgroup/cjail");
-    rmdir ("/cgroup/cjail~");
+  if (rename (DEV_CGROUP "/cjail~", DEV_CGROUP "/cjail")) {
+    perror (DEV_CGROUP "/cjail");
+    rmdir (DEV_CGROUP "/cjail~");
   }
 
   return 0;
@@ -84,7 +83,7 @@ entercgroup (void)
   char *pid;
 
   asprintf (&pid, "%d\n", getpid ());
-  if (echoTo (pid, "/cgroup/cjail/tasks")) {
+  if (echoTo (pid, DEV_CGROUP "/cjail/tasks")) {
     free (pid);
     return -1;
   }
@@ -135,7 +134,8 @@ setup_fs (const char *dir)
   ensure_root ("root", 0);
   ensure_root ("root/init", 1);
 
-  if (mount ("root", "readonly", "bind", MS_BIND|MS_REC, NULL)
+  if (mount ("none", "/", "none", MS_REC|MS_PRIVATE, NULL)
+      || mount ("root", "readonly", "bind", MS_BIND|MS_REC, NULL)
       || mount ("root", "readonly", "bind",
 		MS_BIND|MS_REMOUNT|MS_RDONLY|MS_SLAVE, NULL)) {
     perror ("bind mount");

@@ -99,6 +99,19 @@ init_dest() {
     ln -s ../tmp "$DESTDIR/var/tmp"
 
     bind_files
+
+    systemctl start haveged.service || :
+    cat > "$DESTDIR/tmp/populate" <<'EOF'
+pacman-key --init
+
+gpg() {
+    command gpg --command-fd 0 "$@"
+}
+set -- --populate archlinux
+exec < <(yes)
+. $(command -v pacman-key)
+EOF
+    chroot "$DESTDIR" bash /tmp/populate
 }
 
 setup_yaourt() {
@@ -109,7 +122,8 @@ setup_yaourt() {
     fi
 
     for pkg in package-query yaourt; do
-	wget -O- "http://aur.archlinux.org/packages/${pkg}/${pkg}.tar.gz" \
+	curl -L \
+	    "https://aur.archlinux.org/packages/${pkg:0:2}/${pkg}/${pkg}.tar.gz" \
 	    | tar -C "$DESTDIR/tmp" -xzf -
 	chroot "$DESTDIR" sh -c \
 	    "set -x; cd /tmp/$pkg && makepkg --asroot -si --noconfirm"
