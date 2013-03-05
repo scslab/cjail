@@ -111,6 +111,12 @@ setup_yaourt() {
     chroot "$DESTDIR" sh -c \
 	"pacman-key --init"
 
+    chroot "$DESTDIR" sh -c \
+	"yes | pacman-key --populate archlinux"
+    
+    chroot "$DESTDIR" sh -c \
+        "pacman-key --lsign-key 1EB2638FF56C0C53"
+
     for pkg in package-query yaourt; do
 	wget -O- "http://aur.archlinux.org/packages/${pkg:0:2}/${pkg}/${pkg}.tar.gz" \
 	    | tar -C "$DESTDIR/tmp" -xzf -
@@ -181,3 +187,8 @@ setup_init
 mkdir -p "$READONLY"
 mkdir -p "$DESTDIR/root/oldroot"
 touch "$BASEDIR/.cjail"
+
+echo ""
+echo "=============="
+echo "CJail created!"
+
