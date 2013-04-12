@@ -14,8 +14,8 @@ build() {
 
 package() {
   cd "$srcdir"
-  install -Dm4755 cjail "$pkgdir"/usr/sbin/cjail
-  install -Dm744 mkcjail "$pkgdir"/usr/bin/mkcjail
+  install -Dm4755 cjail "$pkgdir"/usr/bin/cjail
+  install -Dm744 mkcjail "$pkgdir"/usr/sbin/mkcjail
   install -Dm755 cjail-init "$pkgdir"/usr/lib/cjail/init
   install -Dm755 README.md "$pkgdir"/usr/share/doc/cjail/README.md
 }
