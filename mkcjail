@@ -185,8 +185,8 @@ if [[ -n $STARTSHELL ]]; then
 fi
 
 init_dest
-setup_yaourt
-setup_aur
+# setup_yaourt
+# setup_aur
 setup_init
 
 mkdir -p "$READONLY"
